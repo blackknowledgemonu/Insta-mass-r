@@ -1,6 +1,5 @@
 # ============================================================
-# instagram_reporter_bot.py - NO PROXY NEEDED!
-# Instagram Mass Reporter - 100% Working Without Proxies
+# INSTAGRAM MASS REPORTER BOT - FULLY WORKING
 # ============================================================
 
 import os
@@ -16,12 +15,9 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 import aiohttp
 from aiohttp import ClientTimeout, ClientSession
 
-# ==================== CONFIGURATION ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-if not BOT_TOKEN:
-    print("❌ ERROR: BOT_TOKEN not set!")
-    print("Get from @BotFather on Telegram")
-    exit(1)
+# ==================== BOT TOKEN & CHAT ID ====================
+BOT_TOKEN = "8894816246:AAHn9K6iMY6Z5qqXxfCsVS7Uw5a7fjn8aZo"
+OWNER_CHAT_ID = 1677950104  # Your Telegram Chat ID
 
 # ==================== LOGGING ====================
 logging.basicConfig(
@@ -34,7 +30,7 @@ logger = logging.getLogger(__name__)
 active_attacks = {}
 report_stats = {}
 
-# ==================== INSTAGRAM REPORTER - NO PROXY ====================
+# ==================== INSTAGRAM REPORTER ====================
 class InstagramReporter:
     def __init__(self, username, count=200):
         self.username = username.strip().replace('instagram.com/', '').replace('/', '').replace('@', '')
@@ -44,7 +40,6 @@ class InstagramReporter:
         self.csrf_token = None
         self.user_id = None
         
-        # Multiple user agents for rotation
         self.user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -53,7 +48,6 @@ class InstagramReporter:
             'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
         ]
         
-        # Multiple report reasons
         self.report_reasons = [
             {'reason': '1', 'message': 'Spam or fake account'},
             {'reason': '2', 'message': 'Bullying or harassment'},
@@ -68,12 +62,7 @@ class InstagramReporter:
             {'reason': '11', 'message': 'Terrorism or extremism'},
         ]
         
-        self.success_count = 0
-        self.failed_count = 0
-        self.rate_limited_count = 0
-        
     def get_headers(self):
-        """Get random headers"""
         return {
             'User-Agent': random.choice(self.user_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -92,15 +81,10 @@ class InstagramReporter:
         }
     
     async def initialize(self):
-        """Initialize session"""
         try:
-            self.session = ClientSession(
-                timeout=ClientTimeout(total=30, connect=10)
-            )
-            
+            self.session = ClientSession(timeout=ClientTimeout(total=30, connect=10))
             headers = self.get_headers()
             
-            # Get CSRF token
             async with self.session.get('https://www.instagram.com/', headers=headers) as response:
                 html = await response.text()
                 
@@ -116,8 +100,6 @@ class InstagramReporter:
                     self.csrf_token = "missing"
                     
                 logger.info(f"✅ CSRF Token obtained")
-                
-                # Get user ID
                 self.user_id = await self.get_user_id()
                 return True
                 
@@ -126,9 +108,7 @@ class InstagramReporter:
             return False
     
     async def get_user_id(self):
-        """Get user ID"""
         try:
-            # Try API first
             api_url = f'https://www.instagram.com/api/v1/web/get_profile/?username={self.username}'
             headers = self.get_headers()
             headers['X-CSRFToken'] = self.csrf_token
@@ -143,7 +123,6 @@ class InstagramReporter:
                             logger.info(f"✅ User ID found: {user_id}")
                             return user_id
             
-            # Fallback: Get from page
             page_url = f'https://www.instagram.com/{self.username}/'
             headers = self.get_headers()
             
@@ -169,7 +148,6 @@ class InstagramReporter:
             return None
     
     async def report_user(self):
-        """Report Instagram user"""
         try:
             if not self.user_id:
                 self.user_id = await self.get_user_id()
@@ -179,7 +157,6 @@ class InstagramReporter:
             else:
                 report_url = f'https://www.instagram.com/api/v1/web/users/{self.username}/report/'
             
-            # Select random reason
             selected_reason = random.choice(self.report_reasons)
             
             data = {
@@ -197,7 +174,6 @@ class InstagramReporter:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             headers['X-Instagram-AJAX'] = '1'
             
-            # Multiple attempts
             for attempt in range(3):
                 try:
                     async with self.session.post(report_url, headers=headers, data=data) as response:
@@ -212,7 +188,6 @@ class InstagramReporter:
                         elif status == 404:
                             return False, "User not found"
                         else:
-                            # Try different reason
                             data['reason'] = random.choice(self.report_reasons)['reason']
                             await asyncio.sleep(0.5)
                             
@@ -227,7 +202,6 @@ class InstagramReporter:
             return False, str(e)
     
     async def run(self):
-        """Run mass reporting"""
         self.is_running = True
         stats = {
             'success': 0,
@@ -242,12 +216,10 @@ class InstagramReporter:
         logger.info(f"📊 Total reports: {self.count}")
         
         try:
-            # Initialize
             if not await self.initialize():
                 stats['failed'] = 1
                 return stats
             
-            # Send reports in batches for better success
             batch_size = 50
             for batch_start in range(0, self.count, batch_size):
                 batch_end = min(batch_start + batch_size, self.count)
@@ -270,26 +242,20 @@ class InstagramReporter:
                         stats['failed'] += 1
                         logger.warning(f"❌ [{i+1}/{self.count}] Failed: {message}")
                     
-                    # Smart delay
                     if i < self.count - 1:
                         if success:
-                            delay = random.uniform(0.5, 1.5)  # Fast for success
+                            delay = random.uniform(0.5, 1.5)
                         else:
-                            delay = random.uniform(2, 4)     # Slower for failure
+                            delay = random.uniform(2, 4)
                         
-                        # If rate limited, already waited
                         if 'rate' not in message.lower():
                             await asyncio.sleep(delay)
                 
-                # After each batch, take a short break
                 if self.is_running and batch_end < self.count:
                     logger.info(f"⏳ Batch complete. Taking 5 second break...")
                     await asyncio.sleep(5)
             
-            # Final stats
             stats['total_time'] = (datetime.now() - stats['start_time']).total_seconds()
-            
-            # Store stats
             report_stats[self.username] = stats
             
             logger.info(f"✅ Attack complete! Success: {stats['success']}/{stats['attempted']}")
@@ -306,13 +272,19 @@ class InstagramReporter:
         return stats
     
     def stop(self):
-        """Stop the attack"""
         self.is_running = False
         logger.info("🛑 Attack stopped")
 
+# ==================== OWNER NOTIFICATION ====================
+async def notify_owner(context: ContextTypes.DEFAULT_TYPE, message: str):
+    """Send notification to bot owner"""
+    try:
+        await context.bot.send_message(chat_id=OWNER_CHAT_ID, text=message, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Failed to notify owner: {e}")
+
 # ==================== BOT COMMANDS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start command"""
     keyboard = [
         [InlineKeyboardButton("🚀 Start Report", callback_data="start_report")],
         [InlineKeyboardButton("📊 My Stats", callback_data="stats")],
@@ -322,14 +294,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "🔥 **INSTAGRAM MASS REPORTER v6.0**\n"
-        "⚡ **NO PROXY REQUIRED - 100% WORKING**\n\n"
+        "⚡ **100% WORKING - NO PROXY NEEDED**\n\n"
         "✨ **Features:**\n"
         "✅ No password required\n"
         "✅ 500+ reports per session\n"
         "✅ Smart auto-retry\n"
         "✅ Rate limit handling\n"
-        "✅ Multiple report reasons\n"
-        "✅ 100% success rate\n\n"
+        "✅ Multiple report reasons\n\n"
         "📌 **How to use:**\n"
         "1. Send /report @username\n"
         "2. Choose report count\n"
@@ -339,17 +310,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
+    
+    # Notify owner
+    user = update.effective_user
+    await notify_owner(context, f"🟢 *Bot Started*\nUser: @{user.username or user.first_name}\nID: `{user.id}`")
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Report command"""
     if not context.args:
         await update.message.reply_text(
             "❌ **Usage:** `/report <username or link>`\n\n"
             "Examples:\n"
             "• `/report fake_user`\n"
             "• `/report instagram.com/fake_user`\n"
-            "• `/report @fake_user`\n\n"
-            "💡 Remove @ if you want, it works either way!",
+            "• `/report @fake_user`",
             parse_mode="Markdown"
         )
         return
@@ -387,9 +360,12 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     context.user_data['target'] = target
+    
+    # Notify owner
+    user = update.effective_user
+    await notify_owner(context, f"🎯 *New Report Request*\nUser: @{user.username or user.first_name}\nTarget: @{target}")
 
 async def confirm_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle count selection"""
     query = update.callback_query
     await query.answer()
     
@@ -440,6 +416,15 @@ async def confirm_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await progress_msg.edit_text(result_msg, parse_mode="Markdown")
         
+        # Notify owner about completion
+        user = update.effective_user
+        await notify_owner(context, 
+            f"✅ *Attack Complete*\n"
+            f"User: @{user.username or user.first_name}\n"
+            f"Target: @{target}\n"
+            f"Success: {stats['success']}/{stats['attempted']} ({success_rate:.1f}%)"
+        )
+        
     except Exception as e:
         await progress_msg.edit_text(f"❌ Error: {str(e)}", parse_mode="Markdown")
         
@@ -448,7 +433,6 @@ async def confirm_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del active_attacks[chat_id]
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show stats"""
     user_id = update.effective_user.id
     
     if user_id not in report_stats or not report_stats[user_id]:
@@ -473,18 +457,19 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode="Markdown")
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Stop attack"""
     chat_id = update.effective_chat.id
     
     if chat_id in active_attacks and active_attacks[chat_id].is_running:
         active_attacks[chat_id].stop()
         await update.message.reply_text("🛑 Attack stopped.", parse_mode="Markdown")
         del active_attacks[chat_id]
+        
+        user = update.effective_user
+        await notify_owner(context, f"🛑 *Attack Stopped*\nUser: @{user.username or user.first_name}")
     else:
         await update.message.reply_text("❌ No running attack.", parse_mode="Markdown")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Help command"""
     await update.message.reply_text(
         "💡 **How to Use**\n\n"
         "1. Send /report @username\n"
@@ -501,7 +486,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle buttons"""
     query = update.callback_query
     await query.answer()
     
@@ -519,6 +503,8 @@ def main():
     print("=" * 70)
     print("🔥 INSTAGRAM MASS REPORTER v6.0")
     print("=" * 70)
+    print(f"✅ BOT TOKEN: {BOT_TOKEN[:15]}...")
+    print(f"✅ OWNER CHAT ID: {OWNER_CHAT_ID}")
     print("✅ NO PROXY REQUIRED!")
     print("✅ 100% WORKING!")
     print("✅ NO PASSWORD NEEDED!")
@@ -535,7 +521,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     
     print("✅ Bot is running...")
-    print("📱 Open Telegram and start your bot")
+    print("📱 Bot is ready to use!")
     print("=" * 70)
     
     app.run_polling()
