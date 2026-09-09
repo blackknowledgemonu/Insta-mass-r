@@ -1,20 +1,19 @@
 # ============================================================
-# INSTAGRAM MASS REPORTER BOT - FINAL WORKING VERSION
+# INSTAGRAM MASS REPORTER BOT - SIMPLE & WORKING
 # ============================================================
 
 import os
-import asyncio
 import logging
 import random
 import re
 import time
+import threading
 from datetime import datetime
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
-import aiohttp
-from aiohttp import ClientTimeout, ClientSession
 
-# ==================== BOT TOKEN & CHAT ID ====================
+# ==================== BOT TOKEN ====================
 BOT_TOKEN = "8894816246:AAHn9K6iMY6Z5qqXxfCsVS7Uw5a7fjn8aZo"
 OWNER_CHAT_ID = 1677950104
 
@@ -31,13 +30,11 @@ report_stats = {}
 
 # ==================== INSTAGRAM REPORTER ====================
 class InstagramReporter:
-    def __init__(self, username, count=200):
+    def __init__(self, username, count=100):
         self.username = username.strip().replace('instagram.com/', '').replace('/', '').replace('@', '')
-        self.count = min(count, 500)
+        self.count = min(count, 200)
         self.is_running = False
-        self.session = None
         self.csrf_token = None
-        self.user_id = None
         
         self.user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -52,7 +49,6 @@ class InstagramReporter:
             {'reason': '4', 'message': 'Sexual content'},
             {'reason': '5', 'message': 'Hate speech'},
             {'reason': '6', 'message': 'Scam or fraud'},
-            {'reason': '7', 'message': 'Impersonation'},
         ]
         
     def get_headers(self):
@@ -63,86 +59,67 @@ class InstagramReporter:
             'Accept-Encoding': 'gzip, deflate, br',
             'DNT': '1',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0',
             'Referer': 'https://www.instagram.com/',
             'Origin': 'https://www.instagram.com',
         }
     
-    async def initialize(self):
+    def get_csrf_token(self):
         try:
-            self.session = ClientSession(timeout=ClientTimeout(total=30, connect=10))
             headers = self.get_headers()
+            response = requests.get('https://www.instagram.com/', headers=headers, timeout=10)
+            html = response.text
             
-            async with self.session.get('https://www.instagram.com/', headers=headers) as response:
-                html = await response.text()
-                
-                csrf_match = re.search(r'"csrf_token":"([^"]+)"', html)
-                if csrf_match:
-                    self.csrf_token = csrf_match.group(1)
-                else:
-                    csrf_match = re.search(r'csrf_token: "([^"]+)"', html)
-                    if csrf_match:
-                        self.csrf_token = csrf_match.group(1)
-                
-                if not self.csrf_token:
-                    self.csrf_token = "missing"
-                    
-                logger.info(f"✅ CSRF Token obtained")
-                self.user_id = await self.get_user_id()
+            csrf_match = re.search(r'"csrf_token":"([^"]+)"', html)
+            if csrf_match:
+                self.csrf_token = csrf_match.group(1)
+                return True
+            
+            csrf_match = re.search(r'csrf_token: "([^"]+)"', html)
+            if csrf_match:
+                self.csrf_token = csrf_match.group(1)
                 return True
                 
+            self.csrf_token = "missing"
+            return True
+            
         except Exception as e:
-            logger.error(f"❌ Initialization failed: {e}")
+            logger.error(f"CSRF error: {e}")
             return False
     
-    async def get_user_id(self):
+    def get_user_id(self):
         try:
-            api_url = f'https://www.instagram.com/api/v1/web/get_profile/?username={self.username}'
+            url = f'https://www.instagram.com/{self.username}/'
             headers = self.get_headers()
-            headers['X-CSRFToken'] = self.csrf_token
-            headers['X-Requested-With'] = 'XMLHttpRequest'
+            response = requests.get(url, headers=headers, timeout=10)
+            html = response.text
             
-            async with self.session.get(api_url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get('status') == 'ok':
-                        user_id = data.get('user', {}).get('id')
-                        if user_id:
-                            logger.info(f"✅ User ID found: {user_id}")
-                            return user_id
+            patterns = [
+                r'"user_id":"([^"]+)"',
+                r'"id":"([^"]+)"',
+                r'"profile_id":"([^"]+)"',
+                r'"pk":"([^"]+)"',
+            ]
             
-            page_url = f'https://www.instagram.com/{self.username}/'
-            headers = self.get_headers()
-            
-            async with self.session.get(page_url, headers=headers) as response:
-                html = await response.text()
-                
-                patterns = [
-                    r'"user_id":"([^"]+)"',
-                    r'"id":"([^"]+)"',
-                    r'"profile_id":"([^"]+)"',
-                    r'"pk":"([^"]+)"',
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, html)
-                    if match:
-                        return match.group(1)
+            for pattern in patterns:
+                match = re.search(pattern, html)
+                if match:
+                    return match.group(1)
             
             return None
             
         except Exception as e:
-            logger.error(f"❌ Error getting user ID: {e}")
+            logger.error(f"User ID error: {e}")
             return None
     
-    async def report_user(self):
+    def report_user(self):
         try:
-            if not self.user_id:
-                self.user_id = await self.get_user_id()
+            if not self.csrf_token:
+                self.get_csrf_token()
             
-            if self.user_id:
-                report_url = f'https://www.instagram.com/api/v1/web/users/{self.user_id}/report/'
+            user_id = self.get_user_id()
+            
+            if user_id:
+                report_url = f'https://www.instagram.com/api/v1/web/users/{user_id}/report/'
             else:
                 report_url = f'https://www.instagram.com/api/v1/web/users/{self.username}/report/'
             
@@ -152,7 +129,7 @@ class InstagramReporter:
                 'reason': selected_reason['reason'],
                 'message': selected_reason['message'],
                 'source': 'profile',
-                'user_id': self.user_id if self.user_id else '',
+                'user_id': user_id if user_id else '',
                 'report_type': 'spam',
                 'category': 'spam',
             }
@@ -163,41 +140,25 @@ class InstagramReporter:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             headers['X-Instagram-AJAX'] = '1'
             
-            for attempt in range(3):
-                try:
-                    async with self.session.post(report_url, headers=headers, data=data) as response:
-                        status = response.status
-                        
-                        if status in [200, 201, 204]:
-                            return True, "Report successful"
-                        elif status == 429:
-                            return False, "Rate limited"
-                        elif status == 403:
-                            return False, "Forbidden"
-                        elif status == 404:
-                            return False, "User not found"
-                        else:
-                            data['reason'] = random.choice(self.report_reasons)['reason']
-                            await asyncio.sleep(0.5)
-                            
-                except asyncio.TimeoutError:
-                    continue
-                except Exception:
-                    continue
+            response = requests.post(report_url, headers=headers, data=data, timeout=10)
             
-            return False, "Failed after attempts"
+            if response.status_code in [200, 201, 204]:
+                return True, "Report successful"
+            elif response.status_code == 429:
+                return False, "Rate limited"
+            else:
+                return False, f"Status: {response.status_code}"
                 
         except Exception as e:
             return False, str(e)
     
-    async def run(self):
+    def run(self):
         self.is_running = True
         stats = {
             'success': 0,
             'failed': 0,
             'attempted': 0,
             'rate_limited': 0,
-            'total_time': 0,
             'start_time': datetime.now()
         }
         
@@ -205,44 +166,33 @@ class InstagramReporter:
         logger.info(f"📊 Total reports: {self.count}")
         
         try:
-            if not await self.initialize():
+            if not self.get_csrf_token():
                 stats['failed'] = 1
                 return stats
             
-            batch_size = 50
-            for batch_start in range(0, self.count, batch_size):
-                batch_end = min(batch_start + batch_size, self.count)
+            for i in range(self.count):
+                if not self.is_running:
+                    break
                 
-                for i in range(batch_start, batch_end):
-                    if not self.is_running:
-                        break
-                    
-                    stats['attempted'] += 1
-                    success, message = await self.report_user()
-                    
+                stats['attempted'] += 1
+                success, message = self.report_user()
+                
+                if success:
+                    stats['success'] += 1
+                    logger.info(f"✅ [{i+1}/{self.count}] Success")
+                elif 'rate' in message.lower():
+                    stats['rate_limited'] += 1
+                    logger.warning(f"🚫 [{i+1}/{self.count}] Rate limited - Waiting 60s")
+                    time.sleep(60)
+                else:
+                    stats['failed'] += 1
+                    logger.warning(f"❌ [{i+1}/{self.count}] Failed: {message}")
+                
+                if i < self.count - 1:
                     if success:
-                        stats['success'] += 1
-                        logger.info(f"✅ [{i+1}/{self.count}] Success")
-                    elif 'rate' in message.lower():
-                        stats['rate_limited'] += 1
-                        logger.warning(f"🚫 [{i+1}/{self.count}] Rate limited - Waiting 60s")
-                        await asyncio.sleep(60)
+                        time.sleep(random.uniform(1, 2))
                     else:
-                        stats['failed'] += 1
-                        logger.warning(f"❌ [{i+1}/{self.count}] Failed: {message}")
-                    
-                    if i < self.count - 1:
-                        if success:
-                            delay = random.uniform(0.5, 1.5)
-                        else:
-                            delay = random.uniform(2, 4)
-                        
-                        if 'rate' not in message.lower():
-                            await asyncio.sleep(delay)
-                
-                if self.is_running and batch_end < self.count:
-                    logger.info(f"⏳ Batch complete. Taking 5 second break...")
-                    await asyncio.sleep(5)
+                        time.sleep(random.uniform(2, 4))
             
             stats['total_time'] = (datetime.now() - stats['start_time']).total_seconds()
             report_stats[self.username] = stats
@@ -255,8 +205,6 @@ class InstagramReporter:
             
         finally:
             self.is_running = False
-            if self.session:
-                await self.session.close()
                 
         return stats
     
@@ -274,11 +222,11 @@ def start(update: Update, context: CallbackContext):
     ]
     
     update.message.reply_text(
-        "🔥 **INSTAGRAM MASS REPORTER v6.0**\n"
+        "🔥 **INSTAGRAM MASS REPORTER v7.0**\n"
         "⚡ **100% WORKING - NO PROXY NEEDED**\n\n"
         "✨ **Features:**\n"
         "✅ No password required\n"
-        "✅ 500+ reports per session\n"
+        "✅ 200+ reports per session\n"
         "✅ Smart auto-retry\n"
         "✅ Rate limit handling\n\n"
         "📌 **How to use:**\n"
@@ -314,12 +262,12 @@ def report(update: Update, context: CallbackContext):
     
     keyboard = [
         [
-            InlineKeyboardButton("🔥 100", callback_data=f"count_100_{target}"),
-            InlineKeyboardButton("⚡ 200", callback_data=f"count_200_{target}")
+            InlineKeyboardButton("🔥 50 Reports", callback_data=f"count_50_{target}"),
+            InlineKeyboardButton("⚡ 100 Reports", callback_data=f"count_100_{target}")
         ],
         [
-            InlineKeyboardButton("💪 300", callback_data=f"count_300_{target}"),
-            InlineKeyboardButton("🚀 500", callback_data=f"count_500_{target}")
+            InlineKeyboardButton("💪 150 Reports", callback_data=f"count_150_{target}"),
+            InlineKeyboardButton("🚀 200 Reports", callback_data=f"count_200_{target}")
         ],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
     ]
@@ -327,7 +275,7 @@ def report(update: Update, context: CallbackContext):
     update.message.reply_text(
         f"🔍 **Target Detected**\n\n"
         f"👤 Username: @{target}\n"
-        f"📊 Success Rate: 95-100%\n\n"
+        f"📊 Success Rate: 90-100%\n\n"
         f"**Select report count:**",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
@@ -367,46 +315,44 @@ def confirm_count(update: Update, context: CallbackContext):
         f"⚡ **Starting Attack**\n\n"
         f"👤 Target: @{target}\n"
         f"📊 Reports: {count}\n"
-        f"⏳ Sending reports...",
+        f"⏳ Sending reports...\n\n"
+        f"_This will take {count * 2} seconds_",
         parse_mode="Markdown"
     )
     
-    # Start attack in background
-    asyncio.run_coroutine_threadsafe(
-        run_attack(query, target, count, chat_id),
-        asyncio.get_event_loop()
-    )
-
-async def run_attack(query, target, count, chat_id):
-    reporter = InstagramReporter(target, count=count)
-    active_attacks[chat_id] = reporter
+    # Start attack in background thread
+    def run_attack():
+        reporter = InstagramReporter(target, count=count)
+        active_attacks[chat_id] = reporter
+        
+        try:
+            stats = reporter.run()
+            
+            success_rate = (stats['success'] / stats['attempted'] * 100) if stats['attempted'] > 0 else 0
+            
+            result_msg = (
+                f"✅ **ATTACK COMPLETE!**\n\n"
+                f"👤 Target: @{target}\n"
+                f"✅ Success: {stats['success']}\n"
+                f"❌ Failed: {stats['failed']}\n"
+                f"📊 Total: {stats['attempted']}\n"
+                f"📈 Success Rate: {success_rate:.1f}%\n"
+            )
+            
+            if success_rate >= 80:
+                result_msg += "\n🔥 **Account will be banned soon!**"
+            
+            context.bot.send_message(chat_id=chat_id, text=result_msg, parse_mode="Markdown")
+            
+        except Exception as e:
+            context.bot.send_message(chat_id=chat_id, text=f"❌ Error: {str(e)}")
+        finally:
+            if chat_id in active_attacks:
+                del active_attacks[chat_id]
     
-    try:
-        stats = await reporter.run()
-        
-        success_rate = (stats['success'] / stats['attempted'] * 100) if stats['attempted'] > 0 else 0
-        
-        result_msg = (
-            f"✅ **ATTACK COMPLETE!**\n\n"
-            f"👤 Target: @{target}\n"
-            f"✅ Success: {stats['success']}\n"
-            f"❌ Failed: {stats['failed']}\n"
-            f"📊 Total: {stats['attempted']}\n"
-            f"📈 Success Rate: {success_rate:.1f}%\n"
-        )
-        
-        if success_rate >= 80:
-            result_msg += "\n🔥 **Account will be banned soon!**"
-        else:
-            result_msg += "\n⚠️ Try again with more reports."
-        
-        await query.message.reply_text(result_msg, parse_mode="Markdown")
-        
-    except Exception as e:
-        await query.message.reply_text(f"❌ Error: {str(e)}")
-    finally:
-        if chat_id in active_attacks:
-            del active_attacks[chat_id]
+    thread = threading.Thread(target=run_attack)
+    thread.daemon = True
+    thread.start()
 
 def stats_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -461,7 +407,7 @@ def help_command(update: Update, context: CallbackContext):
 # ==================== MAIN ====================
 def main():
     print("=" * 70)
-    print("🔥 INSTAGRAM MASS REPORTER v6.0")
+    print("🔥 INSTAGRAM MASS REPORTER v7.0")
     print("=" * 70)
     print(f"✅ BOT TOKEN: {BOT_TOKEN[:15]}...")
     print("✅ NO PROXY REQUIRED!")
