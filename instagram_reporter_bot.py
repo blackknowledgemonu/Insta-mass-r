@@ -1,6 +1,6 @@
 # ============================================================
-# INSTAGRAM MASS REPORTER - SUPER SIMPLE VERSION
-# NO COMPLEX LIBRARIES - 100% WORKING
+# INSTAGRAM MASS REPORTER - CLEAN VERSION
+# NO MARKDOWN ERRORS - 100% WORKING
 # ============================================================
 
 import logging
@@ -10,27 +10,21 @@ import time
 import threading
 from datetime import datetime
 import requests
-
-# Use older telegram library version
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
 # ==================== BOT TOKEN ====================
 BOT_TOKEN = "8894816246:AAHn9K6iMY6Z5qqXxfCsVS7Uw5a7fjn8aZo"
-OWNER_CHAT_ID = 1677950104
 
 # ==================== LOGGING ====================
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==================== GLOBAL ====================
 active_attacks = {}
 user_stats = {}
 
-# ==================== SIMPLE INSTAGRAM REPORTER ====================
+# ==================== INSTAGRAM REPORTER ====================
 class SimpleInstagramReporter:
     def __init__(self, username, count=100):
         self.username = username.strip().replace('instagram.com/', '').replace('/', '').replace('@', '')
@@ -39,22 +33,14 @@ class SimpleInstagramReporter:
         self.csrf_token = None
         self.session = requests.Session()
         
-        # Random user agents
         self.user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         ]
         
-        # Report reasons
         self.reasons = [
-            'Spam or fake account',
-            'Bullying or harassment',
-            'Violent content',
-            'Sexual content',
-            'Hate speech',
-            'Scam or fraud',
-            'Impersonation'
+            'Spam or fake account', 'Bullying or harassment', 'Violent content',
+            'Sexual content', 'Hate speech', 'Scam or fraud', 'Impersonation'
         ]
     
     def _get_headers(self, csrf_token=None):
@@ -62,7 +48,6 @@ class SimpleInstagramReporter:
             'User-Agent': random.choice(self.user_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Referer': 'https://www.instagram.com/',
@@ -80,7 +65,6 @@ class SimpleInstagramReporter:
             response = self.session.get('https://www.instagram.com/', headers=self._get_headers(), timeout=10)
             html = response.text
             
-            # Try multiple patterns
             patterns = [
                 r'"csrf_token":"([^"]+)"',
                 r'csrf_token: "([^"]+)"',
@@ -93,7 +77,6 @@ class SimpleInstagramReporter:
                     self.csrf_token = match.group(1)
                     return True
             
-            # If no token found, try to get from cookies
             for cookie in self.session.cookies:
                 if 'csrftoken' in cookie.name.lower():
                     self.csrf_token = cookie.value
@@ -112,7 +95,6 @@ class SimpleInstagramReporter:
             response = self.session.get(url, headers=self._get_headers(), timeout=10)
             html = response.text
             
-            # Try multiple patterns
             patterns = [
                 r'"user_id":"([^"]+)"',
                 r'"id":"([^"]+)"',
@@ -126,7 +108,6 @@ class SimpleInstagramReporter:
                 if match:
                     return match.group(1)
             
-            # Try to get from JSON data
             json_match = re.search(r'window._sharedData = (.*?);</script>', html)
             if json_match:
                 try:
@@ -159,7 +140,6 @@ class SimpleInstagramReporter:
             else:
                 report_url = f'https://www.instagram.com/api/v1/web/users/{self.username}/report/'
             
-            # Random reason and message
             reason_msg = random.choice(self.reasons)
             reason_codes = ['1', '2', '3', '4', '5', '6', '7']
             
@@ -199,15 +179,14 @@ class SimpleInstagramReporter:
             'start_time': datetime.now()
         }
         
-        logger.info(f"🎯 Starting on: @{self.username}")
-        logger.info(f"📊 Total: {self.count}")
+        logger.info(f"Starting on: @{self.username}")
+        logger.info(f"Total: {self.count}")
         
         try:
-            # Get CSRF token first
             self._get_csrf_token()
             
             if not self.csrf_token:
-                logger.warning("⚠️ Could not get CSRF token, trying anyway...")
+                logger.warning("Could not get CSRF token, trying anyway...")
             
             for i in range(self.count):
                 if not self.is_running:
@@ -218,28 +197,27 @@ class SimpleInstagramReporter:
                 
                 if success:
                     stats['success'] += 1
-                    logger.info(f"✅ [{i+1}/{self.count}] Success")
+                    logger.info(f"Success [{i+1}/{self.count}]")
                     time.sleep(random.uniform(1, 2))
                 elif 'rate' in message.lower():
                     stats['rate_limited'] += 1
-                    logger.warning(f"🚫 Rate limited - waiting 60s")
+                    logger.warning(f"Rate limited - waiting 60s")
                     time.sleep(60)
                 else:
                     stats['failed'] += 1
-                    logger.warning(f"❌ [{i+1}/{self.count}] Failed: {message}")
+                    logger.warning(f"Failed [{i+1}/{self.count}]: {message}")
                     time.sleep(random.uniform(2, 4))
             
             stats['total_time'] = (datetime.now() - stats['start_time']).total_seconds()
             
-            # Save stats
             if self.username not in user_stats:
                 user_stats[self.username] = []
             user_stats[self.username].append(stats)
             
-            logger.info(f"✅ Complete! Success: {stats['success']}/{stats['attempted']}")
+            logger.info(f"Complete! Success: {stats['success']}/{stats['attempted']}")
             
         except Exception as e:
-            logger.error(f"❌ Attack failed: {e}")
+            logger.error(f"Attack failed: {e}")
             stats['failed'] += 1
             
         finally:
@@ -250,28 +228,27 @@ class SimpleInstagramReporter:
     
     def stop(self):
         self.is_running = False
-        logger.info("🛑 Stopped")
+        logger.info("Stopped")
 
 # ==================== BOT COMMANDS ====================
 def start(update, context):
     keyboard = [
-        [InlineKeyboardButton("🚀 Start Report", callback_data="report")],
-        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
-        [InlineKeyboardButton("🛑 Stop", callback_data="stop")],
-        [InlineKeyboardButton("💡 Help", callback_data="help")],
+        [InlineKeyboardButton("Start Report", callback_data="report")],
+        [InlineKeyboardButton("Stats", callback_data="stats")],
+        [InlineKeyboardButton("Stop", callback_data="stop")],
+        [InlineKeyboardButton("Help", callback_data="help")],
     ]
     
     update.message.reply_text(
-        "🔥 **INSTAGRAM MASS REPORTER**\n\n"
-        "Send /report @username\n\n"
+        "Instagram Mass Reporter\n\n"
+        "Send /report @username\n"
         "Example: /report fake_account",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 def report(update, context):
     if not context.args:
-        update.message.reply_text("❌ Usage: /report @username")
+        update.message.reply_text("Usage: /report @username")
         return
     
     target = " ".join(context.args).strip()
@@ -281,7 +258,7 @@ def report(update, context):
     chat_id = update.effective_chat.id
     
     if chat_id in active_attacks and active_attacks[chat_id].is_running:
-        update.message.reply_text("⚠️ Attack already running! Use /stop")
+        update.message.reply_text("Attack already running! Use /stop")
         return
     
     keyboard = [
@@ -289,13 +266,12 @@ def report(update, context):
         [InlineKeyboardButton("100", callback_data=f"100_{target}")],
         [InlineKeyboardButton("150", callback_data=f"150_{target}")],
         [InlineKeyboardButton("200", callback_data=f"200_{target}")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
     ]
     
     update.message.reply_text(
-        f"🎯 **Target:** @{target}\n\nSelect report count:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
+        f"Target: @{target}\n\nSelect report count:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     
     context.user_data['target'] = target
@@ -307,17 +283,17 @@ def button_handler(update, context):
     data = query.data
     
     if data == "cancel":
-        query.edit_message_text("❌ Cancelled")
+        query.edit_message_text("Cancelled")
         return
     
     if data == "stop":
         chat_id = query.message.chat_id
         if chat_id in active_attacks:
             active_attacks[chat_id].stop()
-            query.edit_message_text("🛑 Stopped")
+            query.edit_message_text("Stopped")
             del active_attacks[chat_id]
         else:
-            query.edit_message_text("❌ No running attack")
+            query.edit_message_text("No running attack")
         return
     
     if data == "report":
@@ -332,17 +308,13 @@ def button_handler(update, context):
         help_command(update, context)
         return
     
-    # Start attack
     parts = data.split('_')
     if len(parts) >= 2:
         count = int(parts[0])
         target = '_'.join(parts[1:])
         chat_id = query.message.chat_id
         
-        query.edit_message_text(
-            f"⚡ **Starting {count} reports on @{target}**\n\n"
-            f"⏳ Please wait..."
-        )
+        query.edit_message_text(f"Starting {count} reports on @{target}...")
         
         def run_attack():
             reporter = SimpleInstagramReporter(target, count=count)
@@ -354,22 +326,22 @@ def button_handler(update, context):
                 success_rate = (stats['success'] / stats['attempted'] * 100) if stats['attempted'] > 0 else 0
                 
                 result = (
-                    f"✅ **Attack Complete!**\n\n"
-                    f"👤 @{target}\n"
-                    f"✅ Success: {stats['success']}\n"
-                    f"❌ Failed: {stats['failed']}\n"
-                    f"🚫 Rate Limited: {stats['rate_limited']}\n"
-                    f"📊 Total: {stats['attempted']}\n"
-                    f"📈 Success Rate: {success_rate:.1f}%\n"
+                    f"Attack Complete!\n\n"
+                    f"Target: @{target}\n"
+                    f"Success: {stats['success']}\n"
+                    f"Failed: {stats['failed']}\n"
+                    f"Rate Limited: {stats['rate_limited']}\n"
+                    f"Total: {stats['attempted']}\n"
+                    f"Success Rate: {success_rate:.1f}%"
                 )
                 
                 if success_rate >= 70:
-                    result += "\n🔥 **Account flagged for review!**"
+                    result += "\n\nAccount flagged for review!"
                 
-                context.bot.send_message(chat_id=chat_id, text=result, parse_mode="Markdown")
+                context.bot.send_message(chat_id=chat_id, text=result)
                 
             except Exception as e:
-                context.bot.send_message(chat_id=chat_id, text=f"❌ Error: {str(e)}")
+                context.bot.send_message(chat_id=chat_id, text=f"Error: {str(e)}")
             finally:
                 if chat_id in active_attacks:
                     del active_attacks[chat_id]
@@ -379,50 +351,47 @@ def button_handler(update, context):
         thread.start()
 
 def stats_command(update, context):
-    user_id = update.effective_user.id
-    
     if not user_stats:
-        update.message.reply_text("📊 No reports yet!")
+        update.message.reply_text("No reports yet!")
         return
     
-    message = "📊 **Your Report Stats**\n\n"
+    message = "Your Report Stats:\n\n"
     total_success = 0
     
     for username, stats_list in user_stats.items():
         for stats in stats_list:
             total_success += stats.get('success', 0)
-            message += f"@{username}: {stats.get('success', 0)}✅ ({stats.get('attempted', 0)} total)\n"
+            message += f"@{username}: {stats.get('success', 0)} successful ({stats.get('attempted', 0)} total)\n"
     
-    message += f"\n🏆 **Total Successful Reports: {total_success}**"
+    message += f"\nTotal Successful Reports: {total_success}"
     
-    update.message.reply_text(message, parse_mode="Markdown")
+    update.message.reply_text(message)
 
 def stop(update, context):
     chat_id = update.effective_chat.id
     
     if chat_id in active_attacks and active_attacks[chat_id].is_running:
         active_attacks[chat_id].stop()
-        update.message.reply_text("🛑 Attack stopped")
+        update.message.reply_text("Attack stopped")
         del active_attacks[chat_id]
     else:
-        update.message.reply_text("❌ No running attack")
+        update.message.reply_text("No running attack")
 
 def help_command(update, context):
     update.message.reply_text(
-        "📖 **Commands:**\n\n"
+        "Commands:\n\n"
         "/start - Show menu\n"
         "/report @username - Start attack\n"
         "/stop - Stop attack\n"
         "/help - This guide\n\n"
-        "⚠️ Only report violations!"
+        "Only report violations!"
     )
 
 # ==================== MAIN ====================
 def main():
-    print("=" * 60)
-    print("🔥 INSTAGRAM MASS REPORTER")
-    print("=" * 60)
-    print("✅ Bot Starting...")
+    print("=" * 50)
+    print("Instagram Mass Reporter")
+    print("=" * 50)
     
     try:
         updater = Updater(BOT_TOKEN)
@@ -434,14 +403,14 @@ def main():
         dp.add_handler(CommandHandler("help", help_command))
         dp.add_handler(CallbackQueryHandler(button_handler))
         
-        print("✅ Bot is running!")
-        print("=" * 60)
+        print("Bot is running!")
+        print("=" * 50)
         
         updater.start_polling()
         updater.idle()
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
