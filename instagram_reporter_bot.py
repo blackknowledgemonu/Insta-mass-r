@@ -1,5 +1,5 @@
 # ============================================================
-# INSTAGRAM MASS REPORTER BOT - FULLY WORKING
+# INSTAGRAM MASS REPORTER BOT - FIXED VERSION
 # ============================================================
 
 import os
@@ -276,10 +276,10 @@ class InstagramReporter:
         logger.info("🛑 Attack stopped")
 
 # ==================== OWNER NOTIFICATION ====================
-async def notify_owner(context: ContextTypes.DEFAULT_TYPE, message: str):
+async def notify_owner(application, message: str):
     """Send notification to bot owner"""
     try:
-        await context.bot.send_message(chat_id=OWNER_CHAT_ID, text=message, parse_mode="Markdown")
+        await application.bot.send_message(chat_id=OWNER_CHAT_ID, text=message, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"Failed to notify owner: {e}")
 
@@ -313,7 +313,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Notify owner
     user = update.effective_user
-    await notify_owner(context, f"🟢 *Bot Started*\nUser: @{user.username or user.first_name}\nID: `{user.id}`")
+    await notify_owner(context.application, f"🟢 *Bot Started*\nUser: @{user.username or user.first_name}\nID: `{user.id}`")
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -363,7 +363,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Notify owner
     user = update.effective_user
-    await notify_owner(context, f"🎯 *New Report Request*\nUser: @{user.username or user.first_name}\nTarget: @{target}")
+    await notify_owner(context.application, f"🎯 *New Report Request*\nUser: @{user.username or user.first_name}\nTarget: @{target}")
 
 async def confirm_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -418,7 +418,7 @@ async def confirm_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Notify owner about completion
         user = update.effective_user
-        await notify_owner(context, 
+        await notify_owner(context.application, 
             f"✅ *Attack Complete*\n"
             f"User: @{user.username or user.first_name}\n"
             f"Target: @{target}\n"
@@ -465,7 +465,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del active_attacks[chat_id]
         
         user = update.effective_user
-        await notify_owner(context, f"🛑 *Attack Stopped*\nUser: @{user.username or user.first_name}")
+        await notify_owner(context.application, f"🛑 *Attack Stopped*\nUser: @{user.username or user.first_name}")
     else:
         await update.message.reply_text("❌ No running attack.", parse_mode="Markdown")
 
@@ -510,21 +510,24 @@ def main():
     print("✅ NO PASSWORD NEEDED!")
     print("=" * 70)
     
-    app = Application.builder().token(BOT_TOKEN).build()
+    # Build application
+    application = Application.builder().token(BOT_TOKEN).build()
     
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("report", report))
-    app.add_handler(CommandHandler("stats", stats_command))
-    app.add_handler(CommandHandler("stop", stop))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CallbackQueryHandler(confirm_count, pattern="^count_"))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("report", report))
+    application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("stop", stop))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CallbackQueryHandler(confirm_count, pattern="^count_"))
+    application.add_handler(CallbackQueryHandler(button_handler))
     
     print("✅ Bot is running...")
     print("📱 Bot is ready to use!")
     print("=" * 70)
     
-    app.run_polling()
+    # Run the bot
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
